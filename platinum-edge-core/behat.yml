@@ -1,0 +1,11 @@
+default:
+  suites:
+    default:
+      paths:    [ "%paths.base%/tests/bdd/features" ]
+      # bootstrap: removed from here to use FeatureContext hook instead
+      contexts: 
+        - Platinum\Tests\Bdd\Context\FeatureContext
+        - Platinum\Tests\Bdd\Context\ApiContext
+        - Platinum\Tests\Bdd\Context\AuthenticationContext
+        - Platinum\Tests\Bdd\Context\TrainingContext
+        - Platinum\Tests\Bdd\Context\ClientPortalContext

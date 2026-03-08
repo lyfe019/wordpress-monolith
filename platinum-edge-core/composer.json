@@ -1,0 +1,21 @@
+{
+    "autoload": {
+        "psr-4": {
+            "Platinum\\Core\\Api\\": "api/",
+            "Platinum\\Core\\Container\\": "container/",
+            "Platinum\\Core\\Events\\": "Events/",
+            "Platinum\\Shared\\": "shared/",
+            "Platinum\\Modules\\": "modules/",
+            "Platinum\\Core\\": "bootstrap/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Platinum\\Tests\\Bdd\\": "tests/bdd/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5",
+        "behat/behat": "^3.29"
+    }
+}
