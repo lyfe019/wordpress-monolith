@@ -13,10 +13,9 @@ use Platinum\Core\Api\HttpResponse;
 use Platinum\Core\Api\Middleware\AuditMiddleware;
 use Platinum\Core\Api\Middleware\AuthMiddleware;
 use Platinum\Shared\Identity\ActorResolver;
-use Platinum\Modules\Training\TrainingModule;
-use Platinum\Modules\Training\Api\EnrollAction;
-use Platinum\Modules\Training\Api\Testing\SeedTrainingAction;
-use Platinum\Modules\Training\Application\Handlers\EnrollHandler;
+
+// NOTE: We no longer import TrainingModule here. 
+// The Kernel should not know that "Training" exists.
 
 final class Kernel
 {
@@ -36,10 +35,9 @@ final class Kernel
         $container->singleton('event_dispatcher', fn() => new EventDispatcher());
         $container->singleton('module_loader', fn() => new ModuleLoader());
 
-        // 3. Register Domain Modules (Bootstraps module-specific DI/Services)
-        (new TrainingModule())->register();
-
-        // 4. Register Routing
+        // 3. Register Routing
+        // We define the endpoints, but the Handlers are resolved lazily 
+        // from the container only when a request actually hits the route.
         $container->singleton('api_router', function($c) {
             $router = new Router();
             
@@ -50,28 +48,30 @@ final class Kernel
                 fn() => HttpResponse::json(['status' => 'ok', 'handshake' => 'verified'])
             ));
 
-            // BDD Testing Helper: Seed state before testing behavior
+            // BDD Testing Helper
             $router->add(new Route(
                 'POST',
                 '/platinum/v1/testing/seed-training',
                 function($request) {
-                    $action = new SeedTrainingAction();
+                    $action = new \Platinum\Modules\Training\Api\Testing\SeedTrainingAction();
                     return $action->handle($request);
                 }
             ));
 
-            // Phase 2: Enrollment Entry Point
+            // Enrollment Entry Point
             $router->add(new Route(
                 'POST',
                 '/platinum/v1/trainings/enroll',
                 function($request) use ($c) {
-                    // Action requires the Application Handler to orchestrate the use-case
-                    $action = new EnrollAction($c->get(EnrollHandler::class));
+                    // We use fully qualified names or resolve from $c to avoid 
+                    // importing domain classes at the top of the Kernel file.
+                    $handler = $c->get(\Platinum\Modules\Training\Application\Handlers\EnrollHandler::class);
+                    $action  = new \Platinum\Modules\Training\Api\EnrollAction($handler);
                     return $action->handle($request);
                 }
             ));
 
-            // Client Portal: Read Model Entry Point
+            // Client Portal Entry Point
             $router->add(new Route(
                 'GET',
                 '/platinum/v1/portal/my-trainings',
@@ -85,7 +85,7 @@ final class Kernel
             return $router;
         });
 
-        // 5. Register ApiKernel with Middleware stack
+        // 4. Register ApiKernel with Middleware stack
         $container->singleton('api_kernel', function($c) {
             return new ApiKernel(
                 $c->get('api_router'),
