@@ -14,9 +14,11 @@ use Platinum\Core\Api\Middleware\AuditMiddleware;
 use Platinum\Core\Api\Middleware\AuthMiddleware;
 use Platinum\Shared\Identity\ActorResolver;
 
-// NOTE: We no longer import TrainingModule here. 
-// The Kernel should not know that "Training" exists.
-
+/**
+ * Platinum Kernel
+ * * Responsible for booting infrastructure and core services.
+ * Note: Domain modules are registered via App::boot() to avoid circularity.
+ */
 final class Kernel
 {
     private static bool $booted = false;
@@ -36,8 +38,7 @@ final class Kernel
         $container->singleton('module_loader', fn() => new ModuleLoader());
 
         // 3. Register Routing
-        // We define the endpoints, but the Handlers are resolved lazily 
-        // from the container only when a request actually hits the route.
+        // Handlers are resolved lazily to prevent boot-time dependencies on modules.
         $container->singleton('api_router', function($c) {
             $router = new Router();
             
@@ -63,8 +64,6 @@ final class Kernel
                 'POST',
                 '/platinum/v1/trainings/enroll',
                 function($request) use ($c) {
-                    // We use fully qualified names or resolve from $c to avoid 
-                    // importing domain classes at the top of the Kernel file.
                     $handler = $c->get(\Platinum\Modules\Training\Application\Handlers\EnrollHandler::class);
                     $action  = new \Platinum\Modules\Training\Api\EnrollAction($handler);
                     return $action->handle($request);
@@ -86,11 +85,15 @@ final class Kernel
         });
 
         // 4. Register ApiKernel with Middleware stack
+        // This is the primary entry point for all Platinum API requests.
         $container->singleton('api_kernel', function($c) {
             return new ApiKernel(
                 $c->get('api_router'),
                 $c->get(ActorResolver::class), 
-                [new AuditMiddleware(), new AuthMiddleware()]
+                [
+                    new AuditMiddleware(), // 1st: Catch and log the raw request
+                    new AuthMiddleware()    // 2nd: Identify and verify the user
+                ]
             );
         });
 

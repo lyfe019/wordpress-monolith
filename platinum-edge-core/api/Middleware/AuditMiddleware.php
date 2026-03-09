@@ -2,34 +2,45 @@
 namespace Platinum\Core\Api\Middleware;
 
 use Platinum\Core\Api\HttpRequest;
-use Platinum\Core\Events\EventBus;
-use Platinum\Shared\Identity\Actor;
 
 final class AuditMiddleware implements MiddlewareInterface
 {
     public function handle(HttpRequest $request, callable $next)
     {
-        /** @var Actor $actor */
         $actor = $request->actor();
-
-        EventBus::dispatch('api.request.received', [
-            'path'        => $request->path(),
-            'method'      => $request->method(),
-            'actor_type'  => $actor->type(),
-            'actor_id'    => $actor->id(),
-            'authenticated' => $actor->isAuthenticated(),
-            'roles'       => $actor->roles(),
-        ]);
-
-        // Optional runtime log (very useful in dev)
-        error_log(sprintf(
-            '[AUDIT] %s %s actor=%s id=%s',
+        
+        // 1. Log the Intent (The Request)
+        $this->logActivity(sprintf(
+            "START: [%s] %s | Actor: %s (ID: %s) | IP: %s",
             $request->method(),
             $request->path(),
             $actor->type(),
-            $actor->id() ?? 'null'
+            $actor->id() ?? 'Guest',
+            $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0'
         ));
 
-        return $next($request);
+        $startTime = microtime(true);
+
+        // 2. Pass to the next middleware/action
+        $response = $next($request);
+
+        // 3. Log the Outcome (The Response)
+        $duration = round((microtime(true) - $startTime) * 1000, 2);
+        $status = is_array($response) ? ($response['status_code'] ?? 200) : 200;
+
+        $this->logActivity(sprintf(
+            "END: [%s] Status: %s | Duration: %sms",
+            $request->path(),
+            $status,
+            $duration
+        ));
+
+        return $response;
+    }
+
+    private function logActivity(string $message): void
+    {
+        // For now, we use error_log. In Phase 8.2, this can move to a DB Audit Table.
+        error_log("[PLATINUM-AUDIT] " . $message);
     }
 }
